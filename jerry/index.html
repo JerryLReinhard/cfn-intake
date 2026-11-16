@@ -40,6 +40,12 @@ input[type=file]{width:100%;padding:10px;border:1.5px dashed var(--sky);border-r
 .photo-box{background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:10px 12px;margin-top:8px}
 .photo-box ul{margin:6px 0 0 18px;font-size:.82rem}
 .ast-box{background:var(--warn);border:1.5px solid var(--warnb);border-radius:10px;padding:10px 12px;margin-top:8px}
+.tank-line{border-top:1px solid #bfdbfe;padding-top:8px;margin-top:8px}
+.tank-line .tl-head{display:flex;justify-content:space-between;align-items:center}
+.tank-line .tl-head strong{color:var(--navy);font-size:.85rem}
+.tank-line .tl-rm{background:#fff;border:1.5px solid #fca5a5;color:#b91c1c;border-radius:8px;padding:4px 10px;font-size:.8rem;cursor:pointer}
+.grid4{display:grid;grid-template-columns:1fr 1.3fr 1.3fr 1fr;gap:8px}
+@media(max-width:560px){.grid4{grid-template-columns:1fr 1fr}}
 .cond{display:none}.cond.show{display:block}
 .actions{position:sticky;bottom:0;background:linear-gradient(transparent,#e8eef6 28%);padding:16px 0 8px;margin-top:8px;display:flex;flex-direction:column;gap:8px}
 button.primary{background:var(--navy);color:#fff;border:0;border-radius:12px;padding:14px 16px;font-size:1rem;font-weight:700;cursor:pointer}
@@ -109,24 +115,15 @@ button:disabled{opacity:.6;cursor:wait}
         <div class="type-btn" id="btn_ast" data-type="AST"><div>AST</div><small>Aboveground</small></div>
       </div>
       <input type="hidden" id="tank_type" name="tank_type" value=""/>
-      <div class="grid" style="margin-top:8px">
-        <div><label class="field"># of Tanks to Service</label><input type="number" id="tank_count" name="tank_count" min="1" max="20" value="1"/></div>
-        <div id="single_tank_size_wrap"><label class="field req">Tank Size (Gallons)</label><input type="text" id="tank_size" name="tank_size" placeholder="e.g. 10000"/></div>
+      <div class="photo-box" id="tank_lines_box" style="margin-top:10px">
+        <strong>Tanks to Service</strong>
+        <p class="hint">One line per tank size / product. Identical tanks? Put the number in <b>How many tanks like this</b> (e.g. 28 &times; 10,000 gal Diesel), then add another line for any tank that is different.</p>
+        <div id="tank_lines"></div>
+        <button type="button" class="secondary" id="btn_add_line" style="margin-top:10px;width:100%">+ Add a different tank size / product</button>
+        <div id="tank_total" style="margin-top:10px;font-weight:700;color:var(--navy);font-size:.95rem">Total tanks: 1</div>
       </div>
-      <div class="photo-box cond" id="multi_tanks_box" style="margin-top:10px">
-        <strong>Individual Tank Sizes &amp; Products (Required for Multiple Tanks)</strong>
-        <p class="hint">Enter each tank's gallon size, product, and type so we can price accurately.</p>
-        <div id="multi_tanks_rows"></div>
-      </div>
-      <label class="field">Product in Tank</label>
-      <div class="checks" id="product">
-        <label class="check"><input type="checkbox" name="product" value="Diesel"/> Diesel</label>
-        <label class="check"><input type="checkbox" name="product" value="Unleaded / Gas"/> Unleaded / Gas</label>
-        <label class="check"><input type="checkbox" name="product" value="Premium"/> Premium</label>
-        <label class="check"><input type="checkbox" name="product" value="DEF"/> DEF</label>
-        <label class="check"><input type="checkbox" name="product" value="Aviation Fuel"/> Aviation</label>
-        <label class="check"><input type="checkbox" name="product" value="Other"/> Other</label>
-      </div>
+      <input type="hidden" id="tank_count" name="tank_count" value="1"/>
+      <input type="hidden" id="tank_size" name="tank_size" value=""/>
       <label class="field">Tank Material</label>
       <div class="checks" id="material">
         <label class="check"><input type="checkbox" name="material" value="Fiberglass"/> Fiberglass</label>
@@ -316,73 +313,72 @@ const $$ = (s)=>[...document.querySelectorAll(s)];
 function syncChecks(){$$('.check').forEach(l=>{const i=l.querySelector('input'); if(!i) return; l.classList.toggle('on', !!i.checked); i.addEventListener('change',()=>$$('.check').forEach(x=>{const ii=x.querySelector('input'); x.classList.toggle('on', !!(ii&&ii.checked));}));});}
 syncChecks();
 
-function tankCount(){ return Math.max(1, Math.min(20, parseInt(($('#tank_count').value||'1'),10)||1)); }
+const PRODUCTS = ['Diesel','Unleaded / Gas','Premium','DEF','Aviation','Other'];
+const MAX_TANKS = 200;
 function defaultTankType(){ return $('#tank_type').value || 'UST'; }
-function renderMultiTanks(){
-  const n = tankCount();
-  const box = $('#multi_tanks_box');
-  const rows = $('#multi_tanks_rows');
-  const singleWrap = $('#single_tank_size_wrap');
-  if(n < 2){
-    box.classList.remove('show');
-    singleWrap.style.display = '';
-    rows.innerHTML = '';
-    return;
-  }
-  box.classList.add('show');
-  singleWrap.style.display = 'none';
-  if(document.querySelectorAll('#multi_tanks_rows .tank-row').length === n) return;
-  const prev = {};
-  $$('#multi_tanks_rows .tank-row').forEach(r=>{
-    const i = r.dataset.i;
-    prev[i] = {
-      size: (r.querySelector('.t-size')||{}).value||'',
-      product: (r.querySelector('.t-product')||{}).value||'',
-      type: (r.querySelector('.t-type')||{}).value||'',
-    };
-  });
-  const products = ['Diesel','Unleaded / Gas','Premium','DEF','Aviation','Other'];
-  let html = '';
-  for(let i=1;i<=n;i++){
-    const p = prev[i] || {};
-    if(i===1 && !p.size && $('#tank_size').value) p.size = $('#tank_size').value;
-    if(!p.type) p.type = defaultTankType();
-    if(!p.product) p.product = 'Diesel';
-    const prodOpts = products.map(x=>`<option value="${x}"${(p.product===x)?' selected':''}>${x}</option>`).join('');
-    html += `<div class="tank-row" data-i="${i}" style="border-top:1px solid #bfdbfe;padding-top:8px;margin-top:8px">
-      <strong style="color:var(--navy);font-size:.85rem">Tank ${i}</strong>
-      <div class="grid3" style="margin-top:4px">
-        <div><label class="field req">Tank #${i} Size (Gallons)</label>
-          <input type="text" class="t-size" data-i="${i}" value="${p.size||''}" placeholder="e.g. 12000" required/></div>
-        <div><label class="field req">Tank #${i} Product</label>
-          <select class="t-product" data-i="${i}">${prodOpts}</select></div>
-        <div><label class="field">Tank #${i} Type</label>
-          <select class="t-type" data-i="${i}">
-            <option value="UST"${p.type==='UST'?' selected':''}>UST</option>
-            <option value="AST"${p.type==='AST'?' selected':''}>AST</option>
-          </select></div>
-      </div>
+function escAttr(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+function addTankLine(p){
+  p = p || {};
+  const div = document.createElement('div');
+  div.className = 'tank-line';
+  const prodOpts = '<option value="">Select…</option>' + PRODUCTS.map(x=>`<option value="${x}"${p.product===x?' selected':''}>${x}</option>`).join('');
+  const tt = p.tank_type || defaultTankType();
+  div.innerHTML = `<div class="tl-head"><strong class="tl-label">Tank line</strong><button type="button" class="tl-rm">Remove</button></div>
+    <div class="grid4" style="margin-top:4px">
+      <div><label class="field req">How many tanks like this</label><input type="number" class="t-qty" min="1" max="${MAX_TANKS}" step="1" inputmode="numeric" value="${escAttr(p.qty||1)}"/></div>
+      <div><label class="field req">Size each (Gallons)</label><input type="text" class="t-size" inputmode="numeric" placeholder="e.g. 10000" value="${escAttr(p.size||'')}"/></div>
+      <div><label class="field req">Product</label><select class="t-product">${prodOpts}</select></div>
+      <div><label class="field">UST / AST</label><select class="t-type"><option value="UST"${tt==='UST'?' selected':''}>UST</option><option value="AST"${tt==='AST'?' selected':''}>AST</option></select></div>
     </div>`;
-  }
-  rows.innerHTML = html;
+  div.querySelector('.tl-rm').onclick = ()=>{ div.remove(); renumberTankLines(); };
+  div.querySelector('.t-type').addEventListener('change', e=>{ e.target.dataset.touched='1'; });
+  div.querySelectorAll('input,select').forEach(el=>{ el.addEventListener('input', renumberTankLines); el.addEventListener('change', renumberTankLines); });
+  $('#tank_lines').appendChild(div);
+  renumberTankLines();
+  return div;
+}
+function tankLines(){
+  return $$('#tank_lines .tank-line').map((r,k)=>({
+    line: k+1,
+    qty: parseInt((r.querySelector('.t-qty').value||'').trim(),10),
+    size: (r.querySelector('.t-size').value||'').trim(),
+    product: r.querySelector('.t-product').value,
+    tank_type: r.querySelector('.t-type').value || 'UST',
+  }));
+}
+function renumberTankLines(){
+  const rows = $$('#tank_lines .tank-line');
+  let n = 1;
+  rows.forEach((r,k)=>{
+    const q = Math.max(1, parseInt(r.querySelector('.t-qty').value,10)||1);
+    const range = q>1 ? ('Tanks '+n+'–'+(n+q-1)) : ('Tank '+n);
+    r.querySelector('.tl-label').textContent = 'Line '+(k+1)+' · '+range;
+    r.querySelector('.tl-rm').style.display = rows.length>1 ? '' : 'none';
+    n += q;
+  });
+  const total = tankCount();
+  $('#tank_total').textContent = 'Total tanks: '+total+(rows.length>1 ? ' (on '+rows.length+' lines)' : '');
+  $('#tank_count').value = String(total);
+  const first = tankLines()[0];
+  $('#tank_size').value = first ? first.size : '';
+}
+function tankCount(){ return tankLines().reduce((a,l)=>a+Math.max(1, l.qty||1), 0) || 1; }
+function renderMultiTanks(){
+  // UST/AST toggle: carry the default type onto lines the user hasn't set by hand.
+  $$('#tank_lines .t-type').forEach(sel=>{ if(!sel.dataset.touched) sel.value = defaultTankType(); });
+  renumberTankLines();
 }
 function collectTanks(){
-  const n = tankCount();
-  if(n < 2){
-    const size = ($('#tank_size').value||'').trim();
-    const prod = (checkedVals('#product')[0]||'Diesel');
-    return [{tank_num:1, size:size, product:prod, tank_type: defaultTankType()}];
-  }
-  return $$('#multi_tanks_rows .tank-row').map(r=>{
-    const i = parseInt(r.dataset.i,10);
-    return {
-      tank_num: i,
-      size: (r.querySelector('.t-size').value||'').trim(),
-      product: r.querySelector('.t-product').value,
-      tank_type: r.querySelector('.t-type').value||'UST',
-    };
+  let n = 1;
+  return tankLines().map(l=>{
+    const q = Math.max(1, l.qty||1);
+    const o = {line:l.line, qty:q, size:l.size, product:l.product, tank_type:l.tank_type, first_tank:n, last_tank:n+q-1};
+    n += q;
+    return o;
   });
 }
+$('#btn_add_line').onclick = ()=>{ const d = addTankLine({}); const s = d.querySelector('.t-size'); if(s) s.focus(); };
+addTankLine({});
 function syncFilterDetail(){
   const qty = ($('#addon_filter_qty').value||'').trim();
   const sku = ($('#addon_filter_sku').value||'').trim();
@@ -403,9 +399,7 @@ function setType(t){
 }
 $('#btn_ust').onclick=()=>{setType('UST'); renderMultiTanks();};
 $('#btn_ast').onclick=()=>{setType('AST'); renderMultiTanks();};
-$('#tank_count').addEventListener('input', renderMultiTanks);
-$('#tank_count').addEventListener('change', renderMultiTanks);
-renderMultiTanks();
+renumberTankLines();
 function syncCond(){
   const reasons = $$('#reasons input:checked').map(i=>i.dataset.key);
   $('#cond_pump').classList.toggle('show', reasons.includes('pump'));
@@ -427,16 +421,15 @@ function validate(){
    ['poc_name','On-site contact'],['poc_phone','Phone'],['access_count','Access point count'],['submitted_by','Submitted by']
   ].forEach(([id,lab])=>{ if(!(($('#'+id).value||'').trim())) missing.push(lab); });
   if(!$('#tank_type').value) missing.push('Tank type (UST or AST)');
-  const n = tankCount();
-  if(n < 2){
-    if(!(($('#tank_size').value||'').trim())) missing.push('Tank size');
-  } else {
-    const tanks = collectTanks();
-    tanks.forEach(t=>{
-      const sz = parseFloat(String(t.size).replace(/,/g,''));
-      if(!t.size || !(sz > 0)) missing.push('Please enter the gallon size for each tank (Tank '+t.tank_num+' size missing)');
-    });
-  }
+  const lines = tankLines();
+  if(!lines.length) missing.push('At least one tank line');
+  lines.forEach(l=>{
+    if(!(l.qty>=1) || String(l.qty)!==String(parseInt(l.qty,10))) missing.push('Tank line '+l.line+': how many tanks');
+    const sz = parseFloat(String(l.size).replace(/,/g,''));
+    if(!l.size || !(sz > 0)) missing.push('Tank line '+l.line+': gallon size');
+    if(!l.product) missing.push('Tank line '+l.line+': product');
+  });
+  if(tankCount() > MAX_TANKS) missing.push('Total tanks over '+MAX_TANKS+' — call CFN for a custom quote');
   if($$('#reasons input:checked').length===0) missing.push('Reason for cleaning');
   if($$('#access_sizes input:checked').length===0) missing.push('Access point size(s)');
   if($('#cond_pump').classList.contains('show')){
@@ -467,19 +460,15 @@ function summary(){
   push('Tank type', $('#tank_type').value);
   push('# of tanks', String(tankCount()));
   const tanks = collectTanks();
-  if(tankCount() < 2){
-    push('Tank size (gal)', $('#tank_size').value);
-    push('Product', checkedVals('#product').join(', '));
-  } else {
-    const parts = tanks.map(t=>{
-      const sz = Number(String(t.size).replace(/,/g,''));
-      const nice = isFinite(sz) ? sz.toLocaleString('en-US') : t.size;
-      return 'Tank '+t.tank_num+': '+nice+' gal '+t.product+' '+t.tank_type;
-    });
-    push('Tanks breakdown', parts.join('; '));
-    if(tanks[0]) push('Tank size (gal)', tanks[0].size);
-    push('Product', tanks.map(t=>t.product).filter((v,i,a)=>a.indexOf(v)===i).join(', '));
-  }
+  const parts = tanks.map(t=>{
+    const sz = Number(String(t.size).replace(/,/g,''));
+    const nice = isFinite(sz) ? sz.toLocaleString('en-US') : t.size;
+    const rng = t.qty>1 ? ('Tanks '+t.first_tank+'–'+t.last_tank) : ('Tank '+t.first_tank);
+    return t.qty+' × '+nice+' gal '+t.product+' '+t.tank_type+' ('+rng+')';
+  });
+  push('Tanks breakdown', parts.join('; '));
+  if(tanks[0]) push('Tank size (gal)', tanks[0].size);
+  push('Product', tanks.map(t=>t.product).filter((v,i,a)=>v && a.indexOf(v)===i).join(', '));
   push('Material', checkedVals('#material').join(', '));
   push('Setup', checkedVals('#setup').join(', '));
   push('Additional tank info', $('#tank_addl').value);
@@ -649,9 +638,9 @@ if(prefill){
     $('#poc_phone').value='859-555-0199';
     $('#poc_email').value='manager@example.com';
     setType('AST');
-    $('#tank_size').value='12000';
-    $('#tank_count').value='1';
-    $$('#product input').forEach(i=>i.checked = i.value==='Diesel');
+    $('#tank_lines').innerHTML='';
+    addTankLine({qty:28, size:'10000', product:'Diesel', tank_type:'AST'});
+    addTankLine({qty:1, size:'20000', product:'Unleaded / Gas', tank_type:'AST'});
     $$('#material input').forEach(i=>i.checked = i.value==='Steel');
     $$('#setup input').forEach(i=>i.checked = i.value==='ATG Installed');
     $('#tank_addl').value='~18 yr AST; last cleaned unknown; sump sticky';
