@@ -330,6 +330,7 @@ function renderMultiTanks(){
   }
   box.classList.add('show');
   singleWrap.style.display = 'none';
+  if(document.querySelectorAll('#multi_tanks_rows .tank-row').length === n) return;
   const prev = {};
   $$('#multi_tanks_rows .tank-row').forEach(r=>{
     const i = r.dataset.i;
