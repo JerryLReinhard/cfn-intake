@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta name="robots" content="noindex"/>
+<meta name="referrer" content="origin"/>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
 <title>CFN Pre-Quote Intake — Wes Brown</title>
@@ -549,6 +550,7 @@ async function submitWeb(){
   err.style.display='none'; ok.style.display='none';
   if(missing.length){ err.textContent='Please complete: '+missing.join(', '); err.style.display='block'; err.scrollIntoView({behavior:'smooth'}); return; }
   const btn=$('#btn_submit'); btn.disabled=true; btn.textContent='Submitting…';
+  let sending = false;
   try {
     syncFilterDetail();
     const tanks = collectTanks();
@@ -572,27 +574,36 @@ async function submitWeb(){
       'Tanks JSON: '+JSON.stringify(tanks)+'\n\n'+
       'Attachments: '+files.length+' file(s)\n'+
       files.map(f=>'- '+f.name+' ('+f.size+' bytes)').join('\n')+'\n';
-    const fd = new FormData();
-    fd.append('_subject', subject);
-    fd.append('_template', 'basic');
-    fd.append('_captcha', 'false');
-    fd.append('Intake', body);
-    files.forEach((f,i)=>fd.append('attachment'+(i+1), f, f.name));
-    const res = await fetch('https://formsubmit.co/ajax/'+FS_KEY, { method:'POST', body: fd, referrerPolicy:'origin', headers:{'Accept':'application/json'} });
-    let data = {};
-    try { data = await res.json(); } catch(e){}
-    if(!res.ok || String(data.success)!=='true'){ throw new Error(data.message || ('HTTP '+res.status)); }
-    $('#form_view').style.display='none';
-    $('#confirm_view').classList.add('show');
-    $('#confirm_detail').textContent =
-      'Thank you — your Clean Fuels National site & tank intake has been submitted to '
-      + REP.display_name + ' (' + REP.email + '). Reference ID: ' + sid + '.';
-    window.scrollTo(0,0);
+    // FormSubmit's AJAX endpoint drops file uploads, so post a real multipart form (photos become
+    // email attachments) and let FormSubmit redirect back here with ?sent=<id>.
+    const form = document.createElement('form');
+    form.method = 'POST'; form.enctype = 'multipart/form-data'; form.acceptCharset = 'UTF-8';
+    form.action = 'https://formsubmit.co/' + FS_KEY; form.style.display = 'none';
+    const next = location.origin + location.pathname + '?' + (TEST_MODE ? 'test=1&' : '') + 'sent=' + encodeURIComponent(sid);
+    const add = (n, v) => { const el = document.createElement(n==='Intake'?'textarea':'input'); if(n!=='Intake') el.type='hidden'; el.name=n; el.value=v; form.appendChild(el); };
+    add('_subject', subject); add('_template', 'basic'); add('_captcha', 'false'); add('_next', next); add('Intake', body);
+    let filesOk = true;
+    try {
+      files.forEach((f,i)=>{ const dt = new DataTransfer(); dt.items.add(f); const inp = document.createElement('input'); inp.type='file'; inp.name = i===0 ? 'attachment' : 'attachment'+(i+1); inp.files = dt.files; if(!inp.files || inp.files.length!==1) throw new Error('dt'); form.appendChild(inp); });
+    } catch(e){ filesOk = false; }
+    if(!filesOk){
+      // Older browsers: send the originally selected files as-is.
+      [...form.querySelectorAll('input[type=file]')].forEach(x=>x.remove());
+      const orig = [...($('#photos').files||[])];
+      const origTotal = orig.reduce((a,f)=>a+f.size,0);
+      if(origTotal > 9.5*1024*1024) throw new Error('Photos are too large together ('+(origTotal/1048576).toFixed(1)+' MB). Please attach fewer photos (10 MB max)');
+      const ph = $('#photos'); ph.name = 'attachment'; form.appendChild(ph);
+    }
+    document.body.appendChild(form);
+    btn.textContent = 'Sending…';
+    form.submit();
+    sending = true;
+    return;
   } catch(e){
     err.textContent = 'Submit failed: '+e.message+'. You can use the Email App backup button.';
     err.style.display='block';
   } finally {
-    btn.disabled=false; btn.textContent='Submit Quote Request';
+    if(!sending){ btn.disabled=false; btn.textContent='Submit Quote Request'; }
   }
 }
 $('#btn_submit').onclick=submitWeb;
@@ -608,6 +619,17 @@ $('#btn_mailto').onclick=()=>{
   window.location.href='mailto:'+encodeURIComponent(to)+'?cc='+encodeURIComponent(cc)+'&subject='+subj+'&body='+body;
 };
 $('#submitted_date').valueAsDate = new Date();
+(function(){
+  const sent = new URLSearchParams(location.search).get('sent');
+  if(sent){
+    $('#form_view').style.display='none';
+    $('#confirm_view').classList.add('show');
+    $('#confirm_detail').textContent = 'Thank you — your Clean Fuels National site & tank intake has been submitted to '
+      + REP.display_name + ' (' + REP.email + '). Reference ID: ' + sent + '.';
+    const again = document.querySelector('#confirm_view button');
+    if(again) again.onclick = ()=>{ location.href = location.pathname + (TEST_MODE ? '?test=1' : ''); };
+  }
+})();
 if(TEST_MODE){
   const b=document.getElementById('test_banner'); if(b) b.style.display='';
   const p=document.getElementById('btn_prefill'); if(p) p.style.display='';
