@@ -275,6 +275,12 @@ button:disabled{opacity:.6;cursor:wait}
         <input type="text" id="addon_filter_sku" name="addon_filter_sku" placeholder="Optional — e.g. 40510D-AD, 70060, or Unknown"/>
         <input type="hidden" id="addon_filter_detail" name="addon_filter_detail" value=""/>
       </div>
+      <h3>Customer Discount (optional)</h3>
+      <div class="grid">
+        <div><label class="field">Customer discount (%)</label><input type="number" id="discount_pct" name="discount_pct" min="0" max="100" step="any" inputmode="decimal" placeholder="e.g. 15 (leave blank if none)"/></div>
+        <div><label class="field">Discount name / reason</label><input type="text" id="discount_label" name="discount_label" placeholder="e.g. Corporate discount"/></div>
+      </div>
+      <p class="hint">Only if this customer has an agreed discount. Applied to tank cleaning on the quote, before the 5.8% environmental fee.</p>
       <label class="field">Truck access / site restrictions / safety</label>
       <textarea id="site_notes" name="site_notes"></textarea>
       <div class="grid">
@@ -447,6 +453,8 @@ function validate(){
     const q = parseInt(($('#addon_filter_qty').value||'').trim(),10);
     if(!(q>=1)) missing.push('How many filter changes');
   }
+  const dRaw = ($('#discount_pct').value||'').trim();
+  if(dRaw){ const dv = Number(dRaw); if(!isFinite(dv) || dv < 0 || dv > 100) missing.push('Customer discount must be a number from 0 to 100'); }
   return missing;
 }
 function summary(){
@@ -505,6 +513,11 @@ function summary(){
     if(($('#addon_filter_sku').value||'').trim())
       push('Filter part #', ($('#addon_filter_sku').value||'').trim());
   }
+  { const dv = Number(($('#discount_pct').value||'').trim());
+    if(isFinite(dv) && dv > 0){
+      push('Discount Percent', String(dv));
+      push('Discount Label', ($('#discount_label').value||'').trim() || 'Customer Discount');
+    } }
   push('Site notes', $('#site_notes').value);
   push('Submitted by', $('#submitted_by').value);
   push('Date', $('#submitted_date').value || new Date().toLocaleDateString());
