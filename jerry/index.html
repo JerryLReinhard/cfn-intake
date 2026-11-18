@@ -94,8 +94,8 @@ button:disabled{opacity:.6;cursor:wait}
         <div><label class="field req">ZIP</label><input type="text" id="site_zip" name="site_zip" required/></div>
       </div>
       <div class="grid">
-        <div><label class="field req">On-Site Contact</label><input type="text" id="poc_name" name="poc_name" required/></div>
-        <div><label class="field req">Phone</label><input type="tel" id="poc_phone" name="poc_phone" required/></div>
+        <div><label class="field">On-Site Contact</label><input type="text" id="poc_name" name="poc_name"/></div>
+        <div><label class="field">Phone</label><input type="tel" id="poc_phone" name="poc_phone"/></div>
       </div>
       <label class="field">Email</label>
       <input type="email" id="poc_email" name="poc_email"/>
@@ -139,9 +139,9 @@ button:disabled{opacity:.6;cursor:wait}
       </div>
       <label class="field">Additional Tank Info</label>
       <textarea id="tank_addl" name="tank_addl" placeholder="Age, last cleaned, tank chart / diameter, sump depth, known issues…"></textarea>
-      <h3>Access Points (required)</h3>
+      <h3>Access Points</h3>
       <div class="grid">
-        <div><label class="field req">How many access points?</label><input type="number" id="access_count" name="access_count" min="1" required/></div>
+        <div><label class="field">How many access points?</label><input type="number" id="access_count" name="access_count" min="1"/></div>
         <div><label class="field">Fittings / caps open freely?</label>
           <select id="fittings" name="fittings"><option value="">Select…</option><option>Yes</option><option>No / Unknown</option></select>
         </div>
@@ -263,6 +263,7 @@ button:disabled{opacity:.6;cursor:wait}
         <label class="check"><input type="checkbox" name="addons" value="Line Flush" id="addon_flush_cb" data-addon="flush"/> Line Flush</label>
         <label class="check"><input type="checkbox" name="addons" value="Filter Changes" id="addon_filter_cb" data-addon="filter"/> Filter Changes</label>
         <label class="check"><input type="checkbox" name="addons" value="Biocide Treatment"/> Biocide Treatment</label>
+        <label class="check"><input type="checkbox" name="addons" value="Fuel Transfer" id="addon_transfer_cb" data-addon="transfer"/> Fuel Transfer</label>
       </div>
       <div class="cond" id="cond_flush" style="margin-top:8px">
         <label class="field req">How Many Line Flushes / Dispensers?</label>
@@ -275,6 +276,15 @@ button:disabled{opacity:.6;cursor:wait}
         <input type="text" id="addon_filter_sku" name="addon_filter_sku" placeholder="Optional — e.g. 40510D-AD, 70060, or Unknown"/>
         <input type="hidden" id="addon_filter_detail" name="addon_filter_detail" value=""/>
       </div>
+      <div class="cond" id="cond_transfer" style="margin-top:8px">
+        <div class="grid">
+          <div><label class="field">Fuel Transfer — Gallons to Transfer</label><input type="number" id="addon_transfer_gal" name="addon_transfer_gal" min="0" step="any" inputmode="decimal" placeholder="e.g. 5000 (blank if unknown)"/></div>
+          <div><label class="field">Number of Transfers</label><input type="number" id="addon_transfer_count" name="addon_transfer_count" min="1" step="1" inputmode="numeric" placeholder="Optional"/></div>
+        </div>
+        <label class="field">Fuel Transfer Details</label>
+        <input type="text" id="addon_transfer_notes" name="addon_transfer_notes" placeholder="Optional — from / to which tank, truck or tote, product, timing"/>
+        <p class="hint">Fuel transfer is priced per gallon — enter gallons if known.</p>
+      </div>
       <h3>Customer Discount (optional)</h3>
       <div class="grid">
         <div><label class="field">Customer discount (%)</label><input type="number" id="discount_pct" name="discount_pct" min="0" max="100" step="any" inputmode="decimal" placeholder="e.g. 15 (leave blank if none)"/></div>
@@ -284,7 +294,7 @@ button:disabled{opacity:.6;cursor:wait}
       <label class="field">Truck access / site restrictions / safety</label>
       <textarea id="site_notes" name="site_notes"></textarea>
       <div class="grid">
-        <div><label class="field req">Submitted By</label><input type="text" id="submitted_by" name="submitted_by" required/></div>
+        <div><label class="field">Submitted By</label><input type="text" id="submitted_by" name="submitted_by"/></div>
         <div><label class="field">Date</label><input type="date" id="submitted_date" name="submitted_date"/></div>
       </div>
     </div>
@@ -416,6 +426,7 @@ function syncCond(){
   const filterOn = !!document.querySelector('#addon_filter_cb:checked');
   $('#cond_flush').classList.toggle('show', flushOn);
   $('#cond_filter').classList.toggle('show', filterOn);
+  $('#cond_transfer').classList.toggle('show', !!document.querySelector('#addon_transfer_cb:checked'));
 }
 $('#reasons').addEventListener('change', syncCond);
 $('#lab_yn').addEventListener('change', syncCond);
@@ -423,8 +434,7 @@ $('#addons').addEventListener('change', syncCond);
 function checkedVals(sel){return $$(sel+' input:checked').map(i=>i.value)}
 function validate(){
   const missing=[];
-  [['cust_name','Customer name'],['site_street','Site address'],['site_city','City'],['site_state','State'],['site_zip','ZIP'],
-   ['poc_name','On-site contact'],['poc_phone','Phone'],['access_count','Access point count'],['submitted_by','Submitted by']
+  [['cust_name','Customer name'],['site_street','Site address'],['site_city','City'],['site_state','State'],['site_zip','ZIP']
   ].forEach(([id,lab])=>{ if(!(($('#'+id).value||'').trim())) missing.push(lab); });
   if(!$('#tank_type').value) missing.push('Tank type (UST or AST)');
   const lines = tankLines();
@@ -453,6 +463,10 @@ function validate(){
     const q = parseInt(($('#addon_filter_qty').value||'').trim(),10);
     if(!(q>=1)) missing.push('How many filter changes');
   }
+  if(document.querySelector('#addon_transfer_cb:checked')){
+    const g = ($('#addon_transfer_gal').value||'').trim();
+    if(g && !(Number(g) >= 0)) missing.push('Fuel transfer gallons must be a number');
+  }
   const dRaw = ($('#discount_pct').value||'').trim();
   if(dRaw){ const dv = Number(dRaw); if(!isFinite(dv) || dv < 0 || dv > 100) missing.push('Customer discount must be a number from 0 to 100'); }
   return missing;
@@ -463,7 +477,7 @@ function summary(){
   push('Customer', $('#cust_name').value);
   push('Store #', $('#store_num').value);
   push('Location', [$('#site_street').value,$('#site_city').value,$('#site_state').value,$('#site_zip').value].filter(Boolean).join(', '));
-  push('On-site POC', $('#poc_name').value+' · '+$('#poc_phone').value+($('#poc_email').value?' · '+$('#poc_email').value:''));
+  push('On-site POC', [$('#poc_name').value,$('#poc_phone').value,$('#poc_email').value].map(x=>(x||'').trim()).filter(Boolean).join(' · '));
   push('Preferred timing', checkedVals('#timing').join(', ')||$('#target_date').value);
   push('Tank type', $('#tank_type').value);
   push('# of tanks', String(tankCount()));
@@ -480,7 +494,7 @@ function summary(){
   push('Material', checkedVals('#material').join(', '));
   push('Setup', checkedVals('#setup').join(', '));
   push('Additional tank info', $('#tank_addl').value);
-  push('Access points', $('#access_count').value+' · sizes: '+checkedVals('#access_sizes').join(', '));
+  push('Access points', (($('#access_count').value||'').trim()||'not specified')+' · sizes: '+checkedVals('#access_sizes').join(', '));
   push('Fittings open freely', $('#fittings').value);
   push('Reason for cleaning', checkedVals('#reasons').join(', '));
   push('Symptoms', $('#symptoms').value);
@@ -512,6 +526,11 @@ function summary(){
     push('Filter changes count', ($('#addon_filter_qty').value||'').trim());
     if(($('#addon_filter_sku').value||'').trim())
       push('Filter part #', ($('#addon_filter_sku').value||'').trim());
+  }
+  if(document.querySelector('#addon_transfer_cb:checked')){
+    push('Fuel transfer gallons', ($('#addon_transfer_gal').value||'').trim() || 'TBD');
+    push('Fuel transfer count', ($('#addon_transfer_count').value||'').trim());
+    push('Fuel transfer notes', ($('#addon_transfer_notes').value||'').trim());
   }
   { const dv = Number(($('#discount_pct').value||'').trim());
     if(isFinite(dv) && dv > 0){
