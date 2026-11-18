@@ -93,12 +93,13 @@ button:disabled{opacity:.6;cursor:wait}
         <div><label class="field req">State</label><input type="text" id="site_state" name="site_state" required maxlength="2"/></div>
         <div><label class="field req">ZIP</label><input type="text" id="site_zip" name="site_zip" required/></div>
       </div>
+      <p class="hint" style="margin-top:10px">Project Contact: the person running the project, for questions and site communication (optional).</p>
       <div class="grid">
-        <div><label class="field">On-Site Contact</label><input type="text" id="poc_name" name="poc_name"/></div>
-        <div><label class="field">Phone</label><input type="tel" id="poc_phone" name="poc_phone"/></div>
+        <div><label class="field">Project Contact</label><input type="text" id="poc_name" name="poc_name" autocomplete="off"/></div>
+        <div><label class="field">Project Contact Phone</label><input type="tel" id="poc_phone" name="poc_phone" autocomplete="off"/></div>
       </div>
-      <label class="field">Email</label>
-      <input type="email" id="poc_email" name="poc_email"/>
+      <label class="field">Project Contact Email</label>
+      <input type="email" id="poc_email" name="poc_email" autocomplete="off"/>
       <label class="field">Preferred Timing</label>
       <div class="checks" id="timing">
         <label class="check"><input type="checkbox" name="timing" value="Standard Weekday"/> Standard Weekday</label>
@@ -294,7 +295,7 @@ button:disabled{opacity:.6;cursor:wait}
       <label class="field">Truck access / site restrictions / safety</label>
       <textarea id="site_notes" name="site_notes"></textarea>
       <div class="grid">
-        <div><label class="field">Submitted By</label><input type="text" id="submitted_by" name="submitted_by"/></div>
+        <div><label class="field">Submitted By</label><input type="text" id="submitted_by" name="submitted_by" autocomplete="off"/></div>
         <div><label class="field">Date</label><input type="date" id="submitted_date" name="submitted_date"/></div>
       </div>
     </div>
@@ -477,7 +478,7 @@ function summary(){
   push('Customer', $('#cust_name').value);
   push('Store #', $('#store_num').value);
   push('Location', [$('#site_street').value,$('#site_city').value,$('#site_state').value,$('#site_zip').value].filter(Boolean).join(', '));
-  push('On-site POC', [$('#poc_name').value,$('#poc_phone').value,$('#poc_email').value].map(x=>(x||'').trim()).filter(Boolean).join(' · '));
+  push('Project Contact', $('#poc_name').value); push('Project Contact Phone', $('#poc_phone').value); push('Project Contact Email', $('#poc_email').value);
   push('Preferred timing', checkedVals('#timing').join(', ')||$('#target_date').value);
   push('Tank type', $('#tank_type').value);
   push('# of tanks', String(tankCount()));
